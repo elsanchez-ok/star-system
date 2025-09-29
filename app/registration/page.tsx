@@ -13,23 +13,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Users, Camera, QrCode, Save, Edit, Trash2, Search, Plus, UserCheck, Check } from "lucide-react"
 import { toast } from "sonner"
 
+// =============================================
+// PASO 1: INTERFACE DEL ESTUDIANTE
+// =============================================
 /**
- * Sistema de Registro de Estudiantes
- *
- * Propósito: Módulo completo para registrar, editar y gestionar estudiantes
- * con integración de fotografías, códigos QR únicos y datos modificables.
- *
- * Características:
- * - Formulario de registro con validación
- * - Captura de fotografía integrada
- * - Generación automática de códigos QR
- * - Lista de estudiantes con búsqueda
- * - Edición en línea de datos con autoguardado
- * - Códigos de usuario modificables sin límites
- * - Exportación de datos
- * - Interfaz glassmorphism responsiva
+ * Interface que define la estructura de datos de un estudiante
+ * Si necesitas agregar nuevos campos, modifica esta interface
  */
-
 interface Student {
   id: string
   firstName: string
@@ -45,12 +35,102 @@ interface Student {
   birthDate: string
   photo?: string
   qrCode: string
-  userCode: string // Added unlimited user code field
+  userCode: string // Código de usuario personalizable sin límites
   enrollmentDate: string
   status: "active" | "inactive"
 }
 
+// =============================================
+// PASO 2: FUNCIÓN PARA AGREGAR A NOCODB
+// =============================================
+/**
+ * Función principal para enviar datos a NocoDB
+ * Si NocoDB no recibe los datos, modifica esta función
+ */
+const addStudentToNocoDB = async (student: Student) => {
+  try {
+    // PASO 2.1: Configuración de URL y API Key de NocoDB
+    const nocodbUrl = "https://app.nocodb.com/api/v2/tables/mzszloazfiqhsoy/records"
+    const apiKey = "7E4SleM0Lalrnb6o10xU6Ot6VHn9obRTDfmErpbz"
+
+    // PASO 2.2: Estructura de datos para NocoDB (PRUEBA CON MINÚSCULAS)
+    const nocoData = {
+      "firstName": student.firstName,
+      "lastName": student.lastName,
+      "email": student.email,
+      "phone": student.phone,
+      "grade": student.grade,
+      "section": student.section,
+      "parentName": student.parentName,
+      "parentPhone": student.parentPhone,
+      "parentEmail": student.parentEmail,
+      "address": student.address,
+      "birthDate": student.birthDate,
+      "photo": student.photo,
+      "qrCode": student.qrCode,
+      "userCode": student.userCode,
+      "enrollmentDate": student.enrollmentDate,
+      "status": student.status,
+    }
+
+    console.log("📤 ENVIANDO A NOCODB:", nocoData)
+
+    // PASO 2.3: Envío de datos a NocoDB
+    const response = await fetch(nocodbUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "xc-token": apiKey,
+      },
+      body: JSON.stringify(nocoData),
+    })
+
+    // PASO 2.4: Verificación de respuesta
+    if (response.ok) {
+      const result = await response.json()
+      console.log("✅ ESTUDIANTE AGREGADO A NOCODB:", result)
+      return true
+    } else {
+      const errorText = await response.text()
+      console.error("❌ ERROR EN RESPUESTA DE NOCODB:", errorText)
+      return false
+    }
+  } catch (error) {
+    console.error("❌ ERROR AL AGREGAR ESTUDIANTE A NOCODB:", error)
+    return false
+  }
+}
+
+// =============================================
+// PASO 3: FUNCIÓN PARA ENVIAR A MAKE (WEBHOOK)
+// =============================================
+/**
+ * Función para enviar datos a Make (integromat)
+ * Si cambia el webhook, modifica esta función
+ */
+const sendStudentToMake = async (student: Student) => {
+  try {
+    const makeWebhookUrl = "https://hook.us2.make.com/jbbhvcxcaj6ebjuzk2og2kguu0pnfjo3"
+    await fetch(makeWebhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(student),
+    })
+    console.log("📨 ESTUDIANTE ENVIADO A MAKE:", student)
+  } catch (error) {
+    console.error("❌ ERROR AL ENVIAR ESTUDIANTE A MAKE:", error)
+  }
+}
+
+// =============================================
+// PASO 4: COMPONENTE PRINCIPAL DE REGISTRO
+// =============================================
 export default function RegistrationPage() {
+  // =============================================
+  // PASO 4.1: ESTADOS PRINCIPALES
+  // =============================================
   const [students, setStudents] = useState<Student[]>([])
   const [isRegistering, setIsRegistering] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
@@ -61,12 +141,15 @@ export default function RegistrationPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isCameraActive, setIsCameraActive] = useState(false)
 
+  // =============================================
+  // PASO 4.2: EFFECT PARA CARGAR DATOS INICIALES
+  // =============================================
   useEffect(() => {
     const savedStudents = localStorage.getItem("eduSystem_students")
     if (savedStudents) {
       setStudents(JSON.parse(savedStudents))
     } else {
-      // Default students if none saved
+      // Datos de ejemplo si no hay estudiantes guardados
       const defaultStudents: Student[] = [
         {
           id: "001",
@@ -110,13 +193,19 @@ export default function RegistrationPage() {
     }
   }, [])
 
+  // =============================================
+  // PASO 4.3: EFFECT PARA AUTO-GUARDADO
+  // =============================================
   useEffect(() => {
     if (students.length > 0) {
       localStorage.setItem("eduSystem_students", JSON.stringify(students))
-      console.log("[v0] Auto-saved students to localStorage:", students.length, "students")
+      console.log("💾 AUTO-GUARDADO EN LOCALSTORAGE:", students.length, "estudiantes")
     }
   }, [students])
 
+  // =============================================
+  // PASO 4.4: ESTADO DEL FORMULARIO
+  // =============================================
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -129,10 +218,16 @@ export default function RegistrationPage() {
     parentEmail: "",
     address: "",
     birthDate: "",
-    userCode: "", // Added user code to form
-    customQRCode: "", // Added custom QR code field
+    userCode: "", // Código de usuario personalizable
+    customQRCode: "", // Código QR personalizable
   })
 
+  // =============================================
+  // PASO 4.5: FUNCIONES DE GENERACIÓN DE CÓDIGOS
+  // =============================================
+  /**
+   * Genera código QR automático o usa uno personalizado
+   */
   const generateQRCode = (customCode?: string) => {
     if (customCode) return customCode
     const timestamp = Date.now().toString(36)
@@ -140,6 +235,9 @@ export default function RegistrationPage() {
     return `QR${timestamp}${random}`.toUpperCase()
   }
 
+  /**
+   * Genera código de usuario automático o usa uno personalizado
+   */
   const generateUserCode = (firstName: string, lastName: string, customCode?: string) => {
     if (customCode) return customCode
     const year = new Date().getFullYear()
@@ -148,6 +246,12 @@ export default function RegistrationPage() {
     return `${nameCode}${year}${studentNumber}`
   }
 
+  // =============================================
+  // PASO 4.6: FUNCIONES DE CÁMARA Y FOTOS
+  // =============================================
+  /**
+   * Inicia la cámara para tomar fotografía
+   */
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -159,10 +263,13 @@ export default function RegistrationPage() {
       }
     } catch (error) {
       toast.error("Error al acceder a la cámara")
-      console.error("Error accessing camera:", error)
+      console.error("Error accediendo a la cámara:", error)
     }
   }
 
+  /**
+   * Captura foto desde la cámara
+   */
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current
@@ -186,12 +293,21 @@ export default function RegistrationPage() {
     }
   }
 
-  const handleRegister = () => {
+  // =============================================
+  // PASO 4.7: FUNCIÓN PRINCIPAL DE REGISTRO
+  // =============================================
+  /**
+   * Función que se ejecuta al registrar un nuevo estudiante
+   * Si hay problemas con el registro, modifica esta función
+   */
+  const handleRegister = async () => {
+    // PASO 4.7.1: Validación de campos obligatorios
     if (!formData.firstName || !formData.lastName || !formData.grade) {
       toast.error("Por favor complete los campos obligatorios")
       return
     }
 
+    // PASO 4.7.2: Creación del objeto estudiante
     const newStudent: Student = {
       id: (students.length + 1).toString().padStart(3, "0"),
       ...formData,
@@ -202,7 +318,24 @@ export default function RegistrationPage() {
       status: "active",
     }
 
+    console.log("🎯 NUEVO ESTUDIANTE CREADO:", newStudent)
+
+    // PASO 4.7.3: Envío a NocoDB
+    const nocoDBSuccess = await addStudentToNocoDB(newStudent)
+    
+    if (nocoDBSuccess) {
+      toast.success(`Estudiante ${newStudent.firstName} ${newStudent.lastName} registrado correctamente en NocoDB`)
+    } else {
+      toast.error("Error al enviar a NocoDB, pero se guardó localmente")
+    }
+
+    // PASO 4.7.4: Envío a Make
+    sendStudentToMake(newStudent)
+
+    // PASO 4.7.5: Actualización del estado local
     setStudents([...students, newStudent])
+    
+    // PASO 4.7.6: Limpieza del formulario
     setFormData({
       firstName: "",
       lastName: "",
@@ -220,10 +353,14 @@ export default function RegistrationPage() {
     })
     setCapturedPhoto("")
     setIsRegistering(false)
-
-    toast.success(`Estudiante ${newStudent.firstName} ${newStudent.lastName} registrado correctamente`)
   }
 
+  // =============================================
+  // PASO 4.8: FUNCIÓN PARA EDITAR ESTUDIANTES
+  // =============================================
+  /**
+   * Función para editar campos de estudiantes en tiempo real
+   */
   const handleEditStudent = (field: keyof Student, value: string, studentId: string) => {
     setStudents((prevStudents) =>
       prevStudents.map((student) => (student.id === studentId ? { ...student, [field]: value } : student)),
@@ -234,6 +371,9 @@ export default function RegistrationPage() {
     )
   }
 
+  // =============================================
+  // PASO 4.9: FILTRADO DE ESTUDIANTES
+  // =============================================
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
       searchTerm === "" ||
@@ -247,18 +387,26 @@ export default function RegistrationPage() {
     return matchesSearch && matchesGrade
   })
 
+  // =============================================
+  // PASO 4.10: FUNCIÓN PARA ELIMINAR ESTUDIANTES
+  // =============================================
   const handleDelete = (studentId: string) => {
     setStudents(students.filter((s) => s.id !== studentId))
     toast.success("Estudiante eliminado correctamente")
   }
 
+  // =============================================
+  // PASO 5: INTERFAZ DE USUARIO (JSX)
+  // =============================================
   return (
     <div className="min-h-screen page-transition">
       <MainNavigation />
 
       <div className="pt-32 pb-20 px-4">
         <div className="max-w-7xl mx-auto">
-          {/* Header */}
+          {/* ============================================= */}
+          {/* PASO 5.1: ENCABEZADO PRINCIPAL */}
+          {/* ============================================= */}
           <div className="slide-in-left mb-8">
             <GlassCard className="p-6">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -282,7 +430,9 @@ export default function RegistrationPage() {
             </GlassCard>
           </div>
 
-          {/* Formulario de registro */}
+          {/* ============================================= */}
+          {/* PASO 5.2: FORMULARIO DE REGISTRO */}
+          {/* ============================================= */}
           {isRegistering && (
             <div className="scale-in mb-8">
               <GlassCard className="p-6">
@@ -294,7 +444,9 @@ export default function RegistrationPage() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  {/* Captura de fotografía */}
+                  {/* ============================================= */}
+                  {/* PASO 5.2.1: SECCIÓN DE FOTOGRAFÍA */}
+                  {/* ============================================= */}
                   <div className="lg:col-span-1">
                     <Label className="text-base font-semibold mb-4 block">Fotografía del Estudiante</Label>
 
@@ -347,7 +499,9 @@ export default function RegistrationPage() {
                     <canvas ref={canvasRef} className="hidden" />
                   </div>
 
-                  {/* Formulario de datos */}
+                  {/* ============================================= */}
+                  {/* PASO 5.2.2: SECCIÓN DE DATOS DEL FORMULARIO */}
+                  {/* ============================================= */}
                   <div className="lg:col-span-2 space-y-6">
                     {/* Datos del estudiante */}
                     <div>
@@ -529,7 +683,9 @@ export default function RegistrationPage() {
             </div>
           )}
 
-          {/* Filtros y búsqueda */}
+          {/* ============================================= */}
+          {/* PASO 5.3: FILTROS Y BÚSQUEDA */}
+          {/* ============================================= */}
           <div className="slide-in-right mb-6">
             <GlassCard className="p-4">
               <div className="flex flex-col md:flex-row gap-4">
@@ -563,7 +719,9 @@ export default function RegistrationPage() {
             </GlassCard>
           </div>
 
-          {/* Lista de estudiantes */}
+          {/* ============================================= */}
+          {/* PASO 5.4: LISTA DE ESTUDIANTES */}
+          {/* ============================================= */}
           <div className="scale-in">
             <GlassCard className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -762,6 +920,9 @@ export default function RegistrationPage() {
                 ))}
               </div>
 
+              {/* ============================================= */}
+              {/* PASO 5.5: MENSAJE CUANDO NO HAY ESTUDIANTES */}
+              {/* ============================================= */}
               {filteredStudents.length === 0 && (
                 <div className="text-center py-12">
                   <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
